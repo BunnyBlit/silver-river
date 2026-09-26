@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Notes, etc.
+BUILD_PLAN.md
+RUNNING_AGD.md
+prototype/
