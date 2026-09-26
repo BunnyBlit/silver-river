@@ -1,8 +1,14 @@
 # Benchmark container: Xvfb + Godot + OBS + the Python harness.
+# declare a few elements globally, so we can load them in FROM
+# syntax=docker/dockerfile:1
 ARG UBUNTU_TAG
+ARG UV_VERSION
+
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uvbin
 FROM ubuntu:${UBUNTU_TAG}
 
 # from versions.env
+ARG UBUNTU_TAG
 ARG GODOT_VERSION
 ARG GODOT_RELEASE
 ARG DOTNET_SDK
@@ -59,7 +65,7 @@ RUN set -eux; \
     chmod +x /usr/local/bin/godot4
 
 # finally, python + uv
-COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /usr/local/bin/uv
+COPY --from=uvbin /uv /usr/local/bin/uv
 RUN uv python install ${PYTHON_VERSION}
 
 # installs are done, lets actually run some shit

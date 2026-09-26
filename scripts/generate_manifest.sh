@@ -11,7 +11,7 @@ cat > /bench/manifest.json <<JSON
     "ubuntu": "${UBUNTU_TAG}",
     "godot": "${GODOT_VERSION}-${GODOT_RELEASE}",
     "dotnet_sdk": "${DOTNET_SDK}",
-    "obs_apt_version": "${OBS_APT_VERSION}"
+    "obs_apt_version": "${OBS_APT_VERSION:-}"
   },
   "resolved": {
     "godot": "${godot_ver}",
