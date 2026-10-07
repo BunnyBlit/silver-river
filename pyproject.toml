@@ -10,11 +10,11 @@ requires-python = ">=3.14"
 dependencies = [
     "obsws-python>=1.8.0",
     "psutil>=7.2.2",
+    "pydantic>=2.13.5",
 ]
 
 [project.scripts]
-silver-river = "silver_river:main"
-silver-river-bench = "silver_river:bench"
+silver-river = "silver_river.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.11,<0.13.0"]

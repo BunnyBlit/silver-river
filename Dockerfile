@@ -80,4 +80,4 @@ COPY README.md .
 COPY src ./src
 RUN uv sync --locked
 
-ENTRYPOINT ["uv", "run", "silver-river-bench"]
+ENTRYPOINT ["uv", "run", "silver-river", "bench"]
