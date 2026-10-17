@@ -16,7 +16,7 @@ def run_benchmark(args):
     os.makedirs(args.output_dir, exist_ok=True)
 
     run_id = f"{int(time.time())}"
-    rows, timing, aborted = _run_and_collect(args, run_id)
+    rows, timing, aborted, aborted_msg = _run_and_collect(args, run_id)
     meta = BenchmarkMetadata.from_args_and_rows(args, rows, timing, aborted, run_id)
     result = BenchmarkResult(
         schema_version=1,
