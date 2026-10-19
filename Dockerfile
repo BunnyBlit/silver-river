@@ -34,6 +34,27 @@ RUN add-apt-repository -y ppa:obsproject/obs-studio && \
     apt-get install -y --no-install-recommends obs-studio${OBS_APT_VERSION:+=$OBS_APT_VERSION} && \
     rm -rf /var/lib/apt/lists/*
 
+# obs-websocket is bundled, but its server is DISABLED by default and the
+# --websocket_port/--websocket_password CLI flags only override values -- they
+# do not enable it. Verified: with both flags accepted, the port stays closed
+# and the log never prints "server started". So this config file is mandatory,
+# not optional (the prototype's README claimed otherwise).
+#
+# server_password is deliberately left empty: the harness supplies the real one
+# via --websocket_password on every run, so no usable credential ships in the
+# image. first_load=false stops obs-websocket regenerating a password on boot.
+RUN mkdir -p /root/.config/obs-studio/plugin_config/obs-websocket && \
+    printf '%s\n' \
+      '{' \
+      '  "server_enabled": true,' \
+      '  "server_port": 4455,' \
+      '  "auth_required": true,' \
+      '  "server_password": "",' \
+      '  "alerts_enabled": false,' \
+      '  "first_load": false' \
+      '}' \
+      > /root/.config/obs-studio/plugin_config/obs-websocket/config.json
+
 # AMD GPU monitoring (rocm-smi) is deliberately NOT installed here -- it
 # requires adding AMD's own apt repo pinned to match the host driver
 # version. If needed, add ROCm's repo + `apt-get install rocm-smi-lib`,

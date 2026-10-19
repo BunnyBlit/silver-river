@@ -11,7 +11,10 @@ from typing import Any
 def run_benchmark(args):
     # formalize the args into something easier to work with?
     if not args.godot_env and not args.allow_idle_workload:
-        raise RuntimeError("Idle workload without --allow-idle-workload set")
+        raise RuntimeError("Idle workload without --allow-idle-workload set!")
+    
+    if not args.obs_password:
+        raise RuntimeError("No OBS Websocket Password provided, the obs server won't run!")
 
     os.makedirs(args.output_dir, exist_ok=True)
 

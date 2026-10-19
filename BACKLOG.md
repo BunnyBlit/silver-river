@@ -8,6 +8,19 @@ before the first real benchmark means polishing a design that hasn't met reality
 Revisit after the first containerized run produces a result file with real Godot
 pixels in the stream.
 
+## Next up
+
+- [ ] **Bounded retry on OBS websocket connect.** Replace the fixed
+      `--obs-warmup` sleep with a retry loop that reports what it was waiting
+      for. Currently a single attempt after a blind sleep, so *any* failure to
+      reach the websocket looks like a timing problem. It cost real debugging
+      time: the actual cause was obs-websocket's server being disabled by
+      default, and a 20s warmup "failing" the same way as a 2s one was the only
+      hint that timing wasn't the issue. Every container run depends on this
+      connection, so a failure here should name itself. Note the asymmetry it
+      fixes: a websocket that dies at minute 30 already degrades gracefully via
+      per-sample `error`, while one that's slow at second 8 kills the whole run.
+
 ## Tests
 
 Highest value first. The ordering isn't arbitrary: the top three are each a bug
@@ -73,10 +86,6 @@ rather than by a test.
       currently serializes as an empty string.
 - [ ] **Formalize `BenchmarkManifest.requested` / `resolved`** — still bare
       `dict`s with "formalize this" comments. `host` is already a real model.
-- [ ] **Bounded retry on OBS connect.** A websocket that dies at minute 30
-      degrades gracefully (per-sample `error`), but one that's slow to come up at
-      second 8 kills the whole run. Replace the fixed `--obs-warmup` sleep with a
-      retry loop.
 - [ ] **Pin `OBS_APT_VERSION`.** Now known to resolve to
       `32.2.0-0obsproject1~noble`. Until it's pinned, two boxes built a week apart
       silently run different OBS versions, which invalidates cross-box comparison.
