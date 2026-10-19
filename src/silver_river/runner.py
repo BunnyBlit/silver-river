@@ -17,7 +17,7 @@ def run_benchmark(args):
 
     run_id = f"{int(time.time())}"
     rows, timing, aborted, aborted_msg = _run_and_collect(args, run_id)
-    meta = BenchmarkMetadata.from_args_and_rows(args, rows, timing, aborted, run_id)
+    meta = BenchmarkMetadata.from_args_and_rows(args, rows, timing, aborted, aborted_msg, run_id)
     result = BenchmarkResult(
         schema_version=1,
         manifest=BenchmarkManifest.from_file(args.manifest_path, args.agd_commit, args.emulated), #TODO: create the manifest
@@ -28,13 +28,13 @@ def run_benchmark(args):
     write_output(result, args.output_dir)
     
 
-def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, bool, str]:
+def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, bool, str | None]:
     timing:dict[str, Any] = {
         'start': None,
         'end': None
     }
     aborted = False
-    abort_reason = ""
+    abort_reason = None
     xvfb_proc = XvfbHandle(display=args.display, width=args.width, height=args.height)
     godot_proc = ChildProcessHandle(
         name="godot",

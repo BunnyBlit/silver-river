@@ -1,4 +1,3 @@
-from functools import reduce
 import psutil
 import platform
 import cpuinfo
@@ -7,16 +6,12 @@ from pathlib import Path
 from csv import DictWriter
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Callable
+from typing import Callable, get_args
 
 FAIL_THRESHOLD = 0.1
 
 def read_cpu_quota() -> float | None:
     """Effective CPU core limit from the cgroup, or None if unlimited/unreadable.
-
-    psutil reports the *host's* core count, so a CPU-limited container otherwise
-    looks like a big box that inexplicably drops frames. Deliberately Linux-only:
-    the harness only ever runs inside the benchmark container.
     """
     # cgroup v2 -- "<quota> <period>", or "max <period>" when uncapped
     try:
@@ -64,9 +59,9 @@ class HostInfo(BaseModel):
         )
 
 class GpuSample(BaseModel):
-    gpu_vendor: str
-    gpu_util_pct: float
-    gpu_mem_used_pct: float | None = None
+    vendor: str
+    util_pct: float
+    mem_used_pct: float | None = None
 
 class ObsSample(BaseModel):
     cpu_usage_pct: float
@@ -128,7 +123,7 @@ class BenchmarkMetadata(BaseModel):
     aborted_reason: str | None = None
 
     @staticmethod
-    def from_args_and_rows(args, rows:list[BenchmarkSample], timing, aborted, run_id) -> BenchmarkMetadata:
+    def from_args_and_rows(args, rows:list[BenchmarkSample], timing, aborted, aborted_message, run_id) -> BenchmarkMetadata:
         skipped_pct = calc_output_drop_pct(rows)
         render_drop_pct = calc_render_drop_pct(rows)
         outcome="aborted" if aborted else ("pass" if skipped_pct <= FAIL_THRESHOLD else "fail")
@@ -147,7 +142,8 @@ class BenchmarkMetadata(BaseModel):
             output_skipped_pct=skipped_pct,
             render_dropped_pct=render_drop_pct,
             threshold_pct=FAIL_THRESHOLD,
-            outcome=outcome
+            outcome=outcome,
+            aborted_reason=aborted_message
         )
 
 class BenchmarkResult(BaseModel):
@@ -203,9 +199,9 @@ def summarize(result: BenchmarkResult) -> None:
     fps = _series(rows, lambda sample: sample.obs and sample.obs.active_fps)
     cpu = _series(rows, lambda sample: sample.host_cpu_pct)
 
-    gpu_util = _series(rows, lambda sample: sample.gpu and sample.gpu.gpu_util_pct)
+    gpu_util = _series(rows, lambda sample: sample.gpu and sample.gpu.util_pct)
     # FIXME: kinda a janky way to do this, but it does work
-    gpu_vendor = next(iter(_series(rows, lambda sample: sample.gpu and sample.gpu.gpu_vendor)), None)
+    gpu_vendor = next(iter(_series(rows, lambda sample: sample.gpu and sample.gpu.vendor)), None)
 
     print(f"\n=== Summary: {meta.label} ===")
     print(f"Samples collected: {len(rows)}")
@@ -228,22 +224,60 @@ def write_output(result: BenchmarkResult, output_dir:Path):
     file_name = f"{result.metadata.label}_{result.metadata.run_id}"
     with open(output_dir / f"{file_name}.json", "w") as f:
         f.write(result.model_dump_json(indent=2))
+        print(f"Raw results written to {file_name}.json")
 
     if result.samples:
         with open(output_dir / f"{file_name}.csv", "w", newline="") as f:
-            names = reduce(lambda merged, sample: merged | set([key for key in _flatten_dict(sample.model_dump()).keys()]), result.samples, set())
-            writer = DictWriter(f, fieldnames=sorted(list(names)), restval="")
+            writer = DictWriter(f, fieldnames=["run_id", "label"] + flat_columns(BenchmarkSample))
             writer.writeheader()
-            writer.writerows([_flatten_dict(sample.model_dump()) for sample in result.samples])
+            writer.writerows(
+                [{
+                    "run_id": result.metadata.run_id,
+                    "label": result.metadata.label,
+                    **flatten_row(sample)
+                } for sample in result.samples])
+            print(f"Raw results written to {file_name}.csv")
     
-    print(f"Raw results written to {file_name}.json / {file_name}.csv")
+   
+def _nested_model(annotation) -> type[BaseModel] | None:
+    """The BaseModel inside an annotation, unwrapping optionals
+    `GpuSample | None` -> GpuSample; `float | None` -> None.
+    """
+    for candidate in (get_args(annotation) or (annotation,)):
+        if isinstance(candidate, type) and issubclass(candidate, BaseModel):
+            return candidate
+    return None
 
-def _flatten_dict(data: dict, parent_key:str = '', sep:str="_") -> dict:
-    items = []
-    for k, v in data.items():
-        new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        if isinstance(v, dict):
-            items.extend(_flatten_dict(v, new_key, sep=sep).items())
+
+def flat_columns(model_cls: type[BaseModel], parent_key: str = "", sep: str = "_") -> list[str]:
+    """CSV column names for a model, derived from a mode's fields"""
+    columns: list[str] = []
+    for name, field in model_cls.model_fields.items():
+        key = f"{parent_key}{sep}{name}" if parent_key else name
+        nested = _nested_model(field.annotation)
+        if nested is not None:
+            columns.extend(flat_columns(nested, key, sep=sep))
         else:
-            items.append((new_key, v))
-    return dict(items)
+            columns.append(key)
+    return columns
+
+
+def flatten_row(model: BaseModel, sep: str = "_") -> dict:
+    """One flat, JSON-scalar row for a model instance, keyed to match
+    flat_columns(type(model))."""
+    return _flatten(model.model_dump(mode="json"), type(model), sep=sep)
+
+
+def _flatten(data: dict, model_cls: type[BaseModel], parent_key: str = "", sep: str = "_") -> dict:
+    items: dict = {}
+    for name, field in model_cls.model_fields.items():
+        key = f"{parent_key}{sep}{name}" if parent_key else name
+        value = data.get(name)
+        nested = _nested_model(field.annotation)
+        if nested is not None:
+            # An absent sub-model still contributes its columns, all empty --
+            # recursing on {} makes every nested lookup resolve to None.
+            items.update(_flatten(value or {}, nested, key, sep=sep))
+        else:
+            items[key] = value
+    return items

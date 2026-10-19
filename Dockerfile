@@ -70,8 +70,10 @@ RUN uv python install ${PYTHON_VERSION}
 
 # installs are done, lets actually run some shit
 WORKDIR /bench
-COPY scripts ./scripts
-RUN bash /bench/scripts/generate_manifest.sh
+
+# copy in our running scripts, generate our manifest file 
+COPY --chmod=0755 scripts/image /usr/local/bin 
+RUN bash /usr/local/bin/generate_manifest.sh
 
 # python project stuff
 COPY pyproject.toml uv.lock .
@@ -80,4 +82,4 @@ COPY README.md .
 COPY src ./src
 RUN uv sync --locked
 
-ENTRYPOINT ["uv", "run", "silver-river", "bench"]
+ENTRYPOINT ["entrypoint.sh"]

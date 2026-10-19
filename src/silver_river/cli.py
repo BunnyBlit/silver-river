@@ -41,7 +41,7 @@ def build_cli() -> ArgumentParser:
     parser_bench.add_argument("--output-dir", type=Path, default="./benchmark_results")
     parser_bench.add_argument("--manifest-path", type=Path, default="/bench/manifest.json")
     parser_bench.add_argument("--agd-commit", type=str)
-    parser_bench.add_argument("--emulated", action="store_true", type=bool)
+    parser_bench.add_argument("--emulated", action="store_true", help="if we were run under emulation or not")
     
     parser_bench.set_defaults(func=bench)
 

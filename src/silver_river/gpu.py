@@ -26,9 +26,9 @@ def _nvidia_gpu_stats():
         ).decode().strip()
         gpu_util, mem_used, mem_total = out.split(", ")
         return GpuSample(
-            gpu_vendor="nvidia",
-            gpu_util_pct=float(gpu_util),
-            gpu_mem_used_pct=round(float(mem_used) / float(mem_total), 2),
+            vendor="nvidia",
+            util_pct=float(gpu_util),
+            mem_used_pct=round(float(mem_used) / float(mem_total), 2),
         )
     except Exception:
         return None
@@ -49,9 +49,9 @@ def _amd_gpu_stats():
         util = row.get("GPU use (%)") or row.get("GPU_use_pct") or 0
         mem = row.get("GPU memory use (%)") or row.get("GPU_mem_use_pct") or 0
         return GpuSample(
-            gpu_vendor="amd",
-            gpu_util_pct=float(util),
-            gpu_mem_used_pct=float(mem),
+            vendor="amd",
+            util_pct=float(util),
+            mem_used_pct=float(mem),
         )
     except Exception:
         return None
@@ -74,9 +74,9 @@ def _intel_gpu_stats():
         render_busy = parsed.get("engines", {}).get("Render/3D/0", {}).get("busy")
         if render_busy:
             return GpuSample(
-            gpu_vendor="intel",
-            gpu_util_pct=float(render_busy),
-            gpu_mem_used_pct=None
+            vendor="intel",
+            util_pct=float(render_busy),
+            mem_used_pct=None
         )
         else:
             return None
