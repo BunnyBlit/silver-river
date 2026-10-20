@@ -59,7 +59,6 @@ def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, boo
     print(f"[{args.label}] starting Xvfb on {args.display} ({args.width}x{args.height})")
     client = None
 
-    timing['start'] = datetime.now(timezone.utc)
     try:
         xvfb_proc.start(args.output_dir, args.label, run_id)
 
@@ -84,7 +83,8 @@ def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, boo
         print(f"[{args.label}] sampling for {args.duration:.0f}s every {args.interval:.0f}s")
         psutil.cpu_percent(interval=None) # prime for sampling -- otherwise the first sample will always read 0.0
         # sampling loop
-        
+
+        timing['start'] = datetime.now(timezone.utc)
         while (datetime.now(timezone.utc) - timing['start']).total_seconds() < args.duration:
             if not godot_proc.alive(): raise RuntimeError("...Godot died mid-run")
 

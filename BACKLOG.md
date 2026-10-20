@@ -10,6 +10,31 @@ pixels in the stream.
 
 ## Next up
 
+Both of the first two are *false-pass* guards. They share a root cause worth
+stating plainly: the pass/fail metric is a ratio over encoder frames, and every
+degenerate input to that ratio currently resolves to "0.0% dropped" — which is
+also what a perfect run looks like. A benchmark that cannot distinguish "flawless"
+from "never ran" is worse than no benchmark, because it produces a confident wrong
+answer to the one question (CPU vs GPU, $15/mo vs $400/mo) the project exists to
+settle.
+
+- [ ] **`calc_output_drop_pct` must distinguish "no frames" from "no drops."**
+      `return (dropped / total) * 100 if total else 0.0` returns `0.0` when the
+      encoder produced zero frames, which the outcome ladder then reads as a pass.
+      Observed for real: a container run collected 10 valid samples, every one
+      with `output_total_frames == 0`, and the result file said `"outcome": "pass"`
+      with `0.00%` drops. Return `None` for `total == 0` and have the ladder map it
+      to `no_data`. The existing `len(rows) == 0` guard does not cover this —
+      ten samples of nothing pass straight through it.
+- [ ] **Verify the stream is actually live, don't infer it.** Call
+      `GetStreamStatus` over obs-websocket after connecting (and ideally per
+      sample) and check `outputActive`. In the run above, `--startstreaming` fired
+      *before* the harness configured the RTMP target via
+      `set_stream_service_settings`, so OBS tried to stream to nothing, failed,
+      and was never told to start again — with no indication anywhere in the
+      result. Checking output state directly turns that into a named failure
+      instead of a silent zero. Also fix the ordering: configure the service
+      first, then start streaming.
 - [ ] **Bounded retry on OBS websocket connect.** Replace the fixed
       `--obs-warmup` sleep with a retry loop that reports what it was waiting
       for. Currently a single attempt after a blind sleep, so *any* failure to

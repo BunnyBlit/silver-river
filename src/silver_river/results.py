@@ -126,7 +126,22 @@ class BenchmarkMetadata(BaseModel):
     def from_args_and_rows(args, rows:list[BenchmarkSample], timing, aborted, aborted_message, run_id) -> BenchmarkMetadata:
         skipped_pct = calc_output_drop_pct(rows)
         render_drop_pct = calc_render_drop_pct(rows)
-        outcome="aborted" if aborted else ("pass" if skipped_pct <= FAIL_THRESHOLD else "fail")
+
+        # outcome is annoying to figure out:
+        # aborted if aborted then
+        # no_data if len(rows) = 0 then
+        # pass if skipped_pct <= FAIL_THRESHOLD else
+        # fail
+        outcome=""
+        if aborted:
+            outcome="aborted"
+        elif len(rows) == 0:
+            outcome="no_data"
+        elif skipped_pct <= FAIL_THRESHOLD:
+            outcome="pass"
+        else:
+            outcome="fail"
+
         return BenchmarkMetadata(
             run_id=run_id,
             label=args.label,
