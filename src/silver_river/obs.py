@@ -1,12 +1,19 @@
 import obsws_python as obs
-from pydantic import BaseModel
-from typing import Any, cast
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
+from typing import Any
 from silver_river.results import ObsSample
 from pathlib import Path
 import tomllib
+import time
 
 class TransformSpec(BaseModel):
     """Scene-item geometry specification"""
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        extra="forbid",
+    )
     position_x: float | None = None
     position_y: float | None = None
     scale_x: float | None = None
@@ -25,7 +32,7 @@ class SourceSpec(BaseModel):
     kind: str
     settings: dict[str, Any] = {}
     transform: TransformSpec | None = None
-    enabled: bool
+    enabled: bool = True
 
 class SceneSpec(BaseModel):
     """A scene in obs"""
@@ -37,29 +44,66 @@ class SceneConfig(BaseModel):
     current_scene: str
     scenes: list[SceneSpec]
 
-def load(path:Path) -> SceneConfig:
-    return SceneConfig.model_validate(path.read_bytes())
+def load_scene_config(path:Path) -> SceneConfig:
+    with open(path, "rb") as f:
+        toml = tomllib.load(f)
+        return SceneConfig.model_validate(toml)
 
-def apply(client:obs.ReqClient, config:SceneConfig) -> None:
+def apply_scene(client:obs.ReqClient, config:SceneConfig) -> None:
     _validate_config(client, config)
     for scene in config.scenes:
         client.create_scene(scene.name)
-        for source, index in zip(scene.sources, range(len(scene.sources) - 1, 0, -1)):
-            client.create_scene_item(scene.name, source.name, source.enabled)
-            id = client.get_scene_item_id(scene.name, source.name, offset=None)
-            client.set_scene_item_index(scene.name, id, index) # z axis bs -- we want first in being the bottom, not the top
+        for source in scene.sources:
+            client.create_input(scene.name, source.name, source.kind, source.settings, source.enabled)
+            item_id = _scene_item_id(client, scene.name, source.name)
             if source.transform:
-                client.set_scene_item_transform(scene.name, id, dict(source.transform))
+                client.set_scene_item_transform(scene.name, item_id, source.transform.model_dump(by_alias=True, exclude_none=True))
+    client.set_current_program_scene(config.current_scene)
 
 
 def _validate_config(client:obs.ReqClient, config:SceneConfig):
-    available_inputs = cast(list, client.get_input_kind_list(False)) # the types on the obs stuff are _awful_
+    available_inputs = _input_kinds(client)
+    if config.current_scene not in [scene.name for scene in config.scenes]:
+        raise RuntimeError(f"{config.current_scene} does not name a known scene")
     for scene in config.scenes:
         for source in scene.sources:
-            assert source.kind in available_inputs, f"{source.name}({source.kind}) wasn't an available inputs"
-            extra = set(source.settings) - set(cast(dict, client.get_input_default_settings(source.kind)))
-            assert len(extra) == 0, f"{source.name} set settings that weren't available {list(extra)}"
+            if source.kind not in available_inputs:
+                raise RuntimeError(f"{source.name}({source.kind}) wasn't an available inputs")
+            extra = set(source.settings) - set(_default_settings(client, source.kind))
+            if len(extra) != 0:
+                raise RuntimeError(f"{source.name} set settings that weren't available {list(extra)}")
 
+# Wrapper functions around various obs.ReqClient functions because their typing is 
+# awful
+def _input_kinds(client: obs.ReqClient) -> list[str]:
+    resp = client.get_input_kind_list(False)
+    kinds = getattr(resp, "input_kinds", None)
+    if not isinstance(kinds, list):
+        raise RuntimeError(f"unexpected GetInputKindList response: {resp!r}")
+    return kinds
+
+
+def _default_settings(client: obs.ReqClient, kind: str) -> dict[str, Any]:
+    resp = client.get_input_default_settings(kind)
+    settings = getattr(resp, "default_input_settings", None)
+    if not isinstance(settings, dict):
+        raise RuntimeError(f"unexpected GetInputDefaultSettings response: {resp!r}")
+    return settings
+
+
+def _scene_item_id(client: obs.ReqClient, scene_name: str, source_name:str) -> int:
+    resp = client.get_scene_item_id(scene_name, source_name)
+    item_id = getattr(resp, "scene_item_id", None)
+    if not isinstance(item_id, int):
+        raise RuntimeError(f"no scene_item_id for {source_name!r} in {scene_name!r}: {resp!r}")
+    return item_id
+
+def _get_stream_status(client: obs.ReqClient) -> bool:
+    resp = client.get_stream_status()
+    status = getattr(resp, "output_active", None)
+    if not isinstance(status, bool):
+        raise RuntimeError(f"no output_active on get_stream_status: {resp!r}")
+    return status 
 
 ###### THE OTHER HALF ######
 def create_obs_client(args):
@@ -69,11 +113,31 @@ def create_obs_client(args):
     """
 
     client = obs.ReqClient(host="localhost", port=args.obs_ws_port, password=args.obs_password, timeout=5)
+    
+    return client
+
+def prepare_stream(client:obs.ReqClient, args, scene_config:SceneConfig):
+    """Set up the client for streaming to an rtmp sink, kick off streaming and verify
+    we're good to go"""
     client.set_stream_service_settings(
         "rtmp_custom",
         {"server": args.rtmp_url, "key": args.stream_key or ""},
     )
-    return client
+    client.set_video_settings(args.fps, 1, args.width, args.height, args.width, args.height)
+    apply_scene(client, scene_config)
+    client.start_stream()
+
+    active = False
+    for _ in range(0, 5):
+        time.sleep(2)
+        up = _get_stream_status(client)
+        if up:
+            active = True
+            break
+    
+    if not active:
+        raise RuntimeError("Timed out waiting for stream to start")
+
 
 def poll_obs_stats(client):
     """The fields we care about for pipeline health

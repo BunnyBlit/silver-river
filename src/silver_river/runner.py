@@ -3,7 +3,7 @@ import time, sys
 import psutil
 import os
 from silver_river.gpu import gpu_utilization
-from silver_river.obs import create_obs_client, poll_obs_stats
+from silver_river.obs import create_obs_client, poll_obs_stats, load_scene_config, apply_scene, prepare_stream
 from silver_river.processes import ChildProcessHandle, XvfbHandle
 from silver_river.results import BenchmarkManifest, BenchmarkMetadata, BenchmarkSample, BenchmarkResult, summarize, write_output
 from typing import Any
@@ -50,15 +50,18 @@ def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, boo
     obs_proc = ChildProcessHandle(
         name="obs",
         cmd=[
-            args.obs_binary, "--minimize-to-tray", "--startstreaming",
+            args.obs_binary, "--minimize-to-tray",
             f"--websocket_port={args.obs_ws_port}",
             f"--websocket_password={args.obs_password}"
         ],
         env={"DISPLAY":xvfb_proc.display})
     rows:list[BenchmarkSample] = []
-    print(f"[{args.label}] starting Xvfb on {args.display} ({args.width}x{args.height})")
     client = None
+    # load the scene config now, we can think about it as independent of starting up
+    # the various processes
+    scene_config = load_scene_config(args.scene_config_path)
 
+    print(f"[{args.label}] starting Xvfb on {args.display} ({args.width}x{args.height})")
     try:
         xvfb_proc.start(args.output_dir, args.label, run_id)
 
@@ -80,10 +83,13 @@ def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, boo
             raise RuntimeError("Unable to start OBS")
         client = create_obs_client(args)
 
+        print(f"[{args.label}] setting up OBS stream")
+        prepare_stream(client, args, scene_config)        
+
+        # sampling loop
         print(f"[{args.label}] sampling for {args.duration:.0f}s every {args.interval:.0f}s")
         psutil.cpu_percent(interval=None) # prime for sampling -- otherwise the first sample will always read 0.0
-        # sampling loop
-
+        
         timing['start'] = datetime.now(timezone.utc)
         while (datetime.now(timezone.utc) - timing['start']).total_seconds() < args.duration:
             if not godot_proc.alive(): raise RuntimeError("...Godot died mid-run")

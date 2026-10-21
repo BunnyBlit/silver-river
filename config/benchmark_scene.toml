@@ -1,0 +1,10 @@
+current_scene = "Benchmark"
+
+[[scenes]]
+name = "Benchmark"
+
+  [[scenes.sources]]
+  name = "godot-capture"
+  kind = "xshm_input_v2"
+  settings = { screen = 0, show_cursor = false }
+  

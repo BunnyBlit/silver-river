@@ -46,6 +46,41 @@ settle.
       fixes: a websocket that dies at minute 30 already degrades gracefully via
       per-sample `error`, while one that's slow at second 8 kills the whole run.
 
+## obs-websocket helpers
+
+- [ ] **Return the whole `GetStreamStatus` response, not just `output_active`.**
+      The same response already carries `output_total_frames`,
+      `output_skipped_frames`, `output_congestion`, `output_reconnecting`,
+      `output_bytes` and `output_duration`. `output_reconnecting` and
+      `output_congestion` are exactly what the counter-reset item below needs —
+      a reconnect becomes observable instead of being inferred from a negative
+      frame delta — and congestion distinguishes "the encoder is struggling" from
+      "the network is struggling", a distinction the hosting decision may turn on.
+      Discarding them means a second round trip later to re-fetch data already in
+      hand.
+- [ ] **Factor out a `poll_until(predicate, timeout, interval)` helper, and use
+      it after every `start_stream`.** `start_stream()` returns before the RTMP
+      handshake completes, so any immediate `output_active` check reads `False` on
+      a stream that is about to work. Every caller of `start_stream` needs to wait
+      for confirmation before returning, or it hands back a client that merely
+      *might* be streaming. The same shape is wanted in two other places already
+      recorded here — the websocket connect retry, and this one — so write it once:
+      sleep *before* re-checking rather than after, skip the trailing sleep on the
+      final attempt, and report what was being waited on when the budget expires.
+
+## Scene applier
+
+- [ ] **Make `obs.apply` idempotent.** `create_scene` raises if the scene already
+      exists, and `create_input` likewise for a source name. Harmless while every
+      container starts with a fresh `~/.config/obs-studio`, but it breaks the
+      moment that directory is persisted or mounted — which is likely, since
+      mounting it is the obvious way to iterate on a scene without rebuilding the
+      image. Check `get_scene_list()` first and either skip or remove-and-recreate.
+      Related: OBS **silently clamps** an out-of-range `set_scene_item_index`
+      rather than erroring, so index bugs in the applier don't announce
+      themselves — a post-apply assertion comparing `get_scene_item_list()` order
+      against the config would catch that class of mistake.
+
 ## Tests
 
 Highest value first. The ordering isn't arbitrary: the top three are each a bug

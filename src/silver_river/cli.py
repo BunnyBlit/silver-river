@@ -36,6 +36,8 @@ def build_cli() -> ArgumentParser:
     parser_bench.add_argument("--display", default=":99")
     parser_bench.add_argument("--width", type=int, default=1280)
     parser_bench.add_argument("--height", type=int, default=720)
+    parser_bench.add_argument("--fps", type=int, default=30)
+    parser_bench.add_argument("--scene-config-path", type=Path, default="./config/benchmark_scene.toml")
     parser_bench.add_argument("--duration", type=float, default=300, help="Sampling duration in seconds")
     parser_bench.add_argument("--interval", type=float, default=2.0, help="Seconds between samples")
     parser_bench.add_argument("--output-dir", type=Path, default="./benchmark_results")

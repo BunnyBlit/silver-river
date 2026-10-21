@@ -103,4 +103,7 @@ COPY README.md .
 COPY src ./src
 RUN uv sync --locked
 
+# copying in the scene file last, as it'll likely change the most
+COPY config ./config
+
 ENTRYPOINT ["entrypoint.sh"]
