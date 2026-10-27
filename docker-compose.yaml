@@ -1,0 +1,42 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:${MEDIAMTX_TAG}
+    ports:
+      - "1935:1935"   # RTMP ingest -- the benchmark streams here instead of Twitch
+      - "8888:8888"   # HLS playback, handy for eyeballing the test stream in a browser
+    restart: unless-stopped
+
+  benchmark:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        UBUNTU_TAG: ${UBUNTU_TAG}
+        GODOT_VERSION: ${GODOT_VERSION}
+        GODOT_RELEASE: ${GODOT_RELEASE}
+        DOTNET_SDK: ${DOTNET_SDK}
+        PYTHON_VERSION: ${PYTHON_VERSION}
+        UV_VERSION: ${UV_VERSION}
+        OBS_APT_VERSION: ${OBS_APT_VERSION}
+    platform: linux/amd64
+    depends_on:
+      - mediamtx
+    environment:
+      - OBS_WS_PASSWORD=${OBS_WS_PASSWORD:?set OBS_WS_PASSWORD}
+    volumes:
+      - ${AGD_REPO:?set AGD_REPO to the BrawlerAGD-Godot checkout}:/bench/godot-project:ro
+      - ./benchmark_results:/bench/benchmark_results
+      - nuget-cache:/root/.nuget/packages
+      # Only needed if you're mounting a scene collection at runtime
+      # instead of baking it into the image via the Dockerfile (see
+      # README.md, "OBS scene setup"). Uncomment if you go that route:
+      # - ./obs-config:/root/.config/obs-studio:ro
+    command:
+      - --label=${LABEL:-local-cpu}
+      - --rtmp-url=rtmp://mediamtx:1935/benchmark
+      - --duration=${DURATION:-300}
+      - --output-dir=/bench/benchmark_results
+
+volumes:
+  nuget-cache:
+    

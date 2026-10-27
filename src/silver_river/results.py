@@ -106,8 +106,8 @@ class BenchmarkManifest(BaseModel):
 class BenchmarkMetadata(BaseModel):
     run_id: str
     label: str
-    started_at: datetime
-    ended_at: datetime
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
     duration_s: float
     interval_s: float
     width: int

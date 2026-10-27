@@ -1,0 +1,10 @@
+# Passes through the DRI render node for Intel Quick Sync (hardware
+# encode) and VAAPI. intel_gpu_top (for utilization monitoring) is already
+# installed in the base Dockerfile.
+services:
+  benchmark:
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render

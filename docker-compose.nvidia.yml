@@ -1,0 +1,14 @@
+# Requires the NVIDIA Container Toolkit installed on the host
+# (https://github.com/NVIDIA/nvidia-container-toolkit).
+# `deploy.resources.reservations.devices` works with Docker Compose v2
+# outside swarm mode on reasonably recent Docker versions; if your compose
+# version rejects it, use the older `runtime: nvidia` form instead.
+services:
+  benchmark:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

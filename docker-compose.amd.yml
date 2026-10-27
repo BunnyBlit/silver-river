@@ -1,0 +1,11 @@
+# Passes through the DRI render node for VAAPI (hardware encode/decode) and
+# Vulkan/GL rendering on AMD GPUs. GPU *utilization monitoring* via rocm-smi
+# additionally requires adding ROCm's apt repo to the Dockerfile, matched to
+# your host's driver version -- see the comment there.
+services:
+  benchmark:
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render
