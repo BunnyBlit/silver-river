@@ -221,3 +221,5 @@ __marimo__/
 BUILD_PLAN.md
 RUNNING_AGD.md
 prototype/
+
+benchmark_results/

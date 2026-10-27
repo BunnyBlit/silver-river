@@ -20,7 +20,7 @@ def build_cli() -> ArgumentParser:
     parser_bench.add_argument("--godot-warmup", type=float, default=5.0)
     parser_bench.add_argument("--godot-env", 
         action='append',
-        default=(),
+        default=[],
         type=lambda arg_string: tuple(arg_string.split("=", 1)),
         help="Repeatable arg for passing things to the godot process environment to define the workload"
     )

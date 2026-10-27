@@ -55,6 +55,18 @@ RUN mkdir -p /root/.config/obs-studio/plugin_config/obs-websocket && \
       '}' \
       > /root/.config/obs-studio/plugin_config/obs-websocket/config.json
 
+# A fresh config makes OBS auto-launch the Auto-Configuration Wizard, and the
+# wizard's constructor calls EnableOutputs(false).
+# Headless, there is nobody to dismiss it, so ~AutoConfig() never runs,
+# disableOutputsRef stays 1 forever, and EVERY output path returns early --
+# before logging anything.
+#
+# Setting either value defeats it; we set both so a reordered condition in a
+# future OBS can't resurrect this.
+RUN mkdir -p /root/.config/obs-studio && \
+    printf '[General]\nFirstRun=true\n' > /root/.config/obs-studio/user.ini && \
+    printf '[General]\nLastVersion=537001984\n' > /root/.config/obs-studio/global.ini
+
 # AMD GPU monitoring (rocm-smi) is deliberately NOT installed here -- it
 # requires adding AMD's own apt repo pinned to match the host driver
 # version. If needed, add ROCm's repo + `apt-get install rocm-smi-lib`,
