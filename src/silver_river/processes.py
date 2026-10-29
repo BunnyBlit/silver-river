@@ -40,9 +40,9 @@ class ChildProcessHandle:
 class XvfbHandle(ChildProcessHandle):
     """Get a handle to an Xvfb process"""
 
-    def __init__(self, display=":99", width=1920, height=1080, depth=24):
+    def __init__(self, display=":99", name="xvfb", width=1920, height=1080, depth=24):
         super().__init__(
-            "xvfb",
+            f"{name}",
             ["Xvfb", display, "-screen", "0", f"{width}x{height}x{depth}", "-nolisten", "tcp"]
         )
         self.display, self.width, self.height, self.depth = display, width, height, depth

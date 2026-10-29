@@ -38,7 +38,18 @@ def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, boo
     }
     aborted = False
     abort_reason = None
-    xvfb_proc = XvfbHandle(display=args.display, width=args.width, height=args.height)
+    xvfb_godot_proc = XvfbHandle(
+        display=":99",
+        name="xvfb_godot",
+        width=args.width,
+        height=args.height
+    )
+    xvfb_obs_proc = XvfbHandle(
+        display=":98",
+        name="xvfb_obs",
+        width=args.width,
+        height=args.height
+    )
     godot_proc = ChildProcessHandle(
         name="godot",
         cmd=[
@@ -46,7 +57,7 @@ def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, boo
             "--windowed", f"--resolution={args.width}x{args.height}",
             f"--rendering-driver={args.godot_rendering_driver}"
         ],
-        env={"DISPLAY":xvfb_proc.display} | dict(args.godot_env))
+        env={"DISPLAY": ":99"} | dict(args.godot_env))
     obs_proc = ChildProcessHandle(
         name="obs",
         cmd=[
@@ -54,19 +65,17 @@ def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, boo
             f"--websocket_port={args.obs_ws_port}",
             f"--websocket_password={args.obs_password}"
         ],
-        env={"DISPLAY":xvfb_proc.display})
+        env={"DISPLAY": ":98"})
     rows:list[BenchmarkSample] = []
     client = None
     # load the scene config now, we can think about it as independent of starting up
     # the various processes
     scene_config = load_scene_config(args.scene_config_path)
 
-    print(f"[{args.label}] starting Xvfb on {args.display} ({args.width}x{args.height})")
+    print(f"[{args.label}] starting Xvfb ({args.width}x{args.height})")
     try:
-        xvfb_proc.start(args.output_dir, args.label, run_id)
-
-        #FIXME / TODO: we should probably fix this? We can factor in the wait time for these processes
-        # at the end
+        xvfb_godot_proc.start(args.output_dir, args.label, run_id)
+        xvfb_obs_proc.start(args.output_dir, args.label, run_id)
         print(f"[{args.label}] launching Godot")
         godot_proc.start(args.output_dir, args.label, run_id)
         #sleep here to wait for the godot process to start up
@@ -126,6 +135,7 @@ def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, boo
                 pass
         obs_proc.stop()
         godot_proc.stop()
-        xvfb_proc.stop()
+        xvfb_godot_proc.stop()
+        xvfb_obs_proc.stop()
 
     return rows, timing, aborted, abort_reason

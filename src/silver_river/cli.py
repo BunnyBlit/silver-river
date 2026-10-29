@@ -33,7 +33,6 @@ def build_cli() -> ArgumentParser:
     parser_bench.add_argument("--rtmp-url", required=True,
                    help="RTMP sink for this test run. Use a local sink (e.g. MediaMTX)")
     parser_bench.add_argument("--stream-key", default="")
-    parser_bench.add_argument("--display", default=":99")
     parser_bench.add_argument("--width", type=int, default=1280)
     parser_bench.add_argument("--height", type=int, default=720)
     parser_bench.add_argument("--fps", type=int, default=30)
