@@ -18,6 +18,13 @@ from "never ran" is worse than no benchmark, because it produces a confident wro
 answer to the one question (CPU vs GPU, $15/mo vs $400/mo) the project exists to
 settle.
 
+- [ ] **Verify the Godot workload is actually running.** Abort if Godot's stdout
+      has no `weather:` line after warmup. The capture check only proves something
+      is drawn: every early harness run benchmarked the idle Project Manager
+      because `--path=<dir>` didn't open the project, and that screen passes a
+      stddev check. The cost is relying on a log line from upstream's code, so a
+      change there would fail loudly. Don't use `match trace saved`, which only
+      appears when a match ends.
 - [ ] **`calc_output_drop_pct` must distinguish "no frames" from "no drops."**
       `return (dropped / total) * 100 if total else 0.0` returns `0.0` when the
       encoder produced zero frames, which the outcome ladder then reads as a pass.
