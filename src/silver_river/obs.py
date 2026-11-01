@@ -6,6 +6,13 @@ from silver_river.results import ObsSample
 from pathlib import Path
 import tomllib
 import time
+import base64
+import io
+from PIL import Image, ImageStat
+
+# Grayscale stddev below this means nothing has been drawn. Measured: black or
+# flat-colour frames are 0.00, give our selves a little wiggle room
+_MIN_CAPTURE_STDDEV = 5.0
 
 # Settings keys OBS accepts for an input but omits from GetInputDefaultSettings,
 # because they have no default value.
@@ -80,6 +87,23 @@ def _validate_config(client:obs.ReqClient, config:SceneConfig):
             if len(extra) != 0:
                 raise RuntimeError(f"{source.name} set settings that weren't available {list(extra)}")
 
+def _verify_capture(client: obs.ReqClient, scene_name: str, width: int, height: int, save_to:Path) -> None:
+    """Refuse to stream a blank capture"""
+    stddev = 0.0
+    for _ in range(5): #TODO: make number of samples a parameter?
+        time.sleep(2)
+        png = _source_screenshot(client, scene_name, width, height)
+        stddev = _capture_stddev(png)
+        if stddev >= _MIN_CAPTURE_STDDEV:
+            save_to.write_bytes(png)
+            return
+    raise RuntimeError(f"Capture of {scene_name!r} looks blank after 10s (stddev: {stddev:.2f})")
+
+def _capture_stddev(png: bytes) -> float:
+    """get the standard deviation of grayscale pixels"""
+    image = Image.open(io.BytesIO(png)).convert("L")
+    return ImageStat.Stat(image).stddev[0]
+
 # Wrapper functions around various obs.ReqClient functions because their typing is 
 # awful
 def _input_kinds(client: obs.ReqClient) -> list[str]:
@@ -112,6 +136,13 @@ def _get_stream_status(client: obs.ReqClient) -> bool:
         raise RuntimeError(f"no output_active on get_stream_status: {resp!r}")
     return status 
 
+def _source_screenshot(client: obs.ReqClient, name:str, width:int, height:int) -> bytes:
+    resp = client.get_source_screenshot(name, "png", width, height, -1)
+    image_data = getattr(resp, "image_data", None)
+    if not isinstance(image_data, str):
+        raise RuntimeError(f"no image_data on get_source_screenshot: {resp!r}")
+    return base64.b64decode(image_data.split(",", 1)[1])
+
 ###### THE OTHER HALF ######
 def create_obs_client(args):
     """Create a websocket client for an obs instance
@@ -123,7 +154,7 @@ def create_obs_client(args):
     
     return client
 
-def prepare_stream(client:obs.ReqClient, args, scene_config:SceneConfig):
+def prepare_stream(client:obs.ReqClient, args, scene_config:SceneConfig, capture_path:Path):
     """Set up the client for streaming to an rtmp sink, kick off streaming and verify
     we're good to go"""
     client.set_stream_service_settings(
@@ -132,6 +163,7 @@ def prepare_stream(client:obs.ReqClient, args, scene_config:SceneConfig):
     )
     client.set_video_settings(args.fps, 1, args.width, args.height, args.width, args.height)
     apply_scene(client, scene_config)
+    _verify_capture(client, scene_config.current_scene, args.width, args.height, capture_path)
     client.start_stream()
 
     active = False

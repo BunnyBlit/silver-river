@@ -1,3 +1,4 @@
+from ast import Call
 import psutil
 import platform
 import cpuinfo
@@ -116,8 +117,8 @@ class BenchmarkMetadata(BaseModel):
     rtmp_url: str
     godot_env: dict[str, str]
     # these results are run-level, so they don't need to be recomputed on the analysis side
-    output_skipped_pct: float
-    render_dropped_pct: float
+    output_skipped_pct: float | None
+    render_dropped_pct: float | None
     threshold_pct: float
     outcome: str
     aborted_reason: str | None = None
@@ -129,13 +130,13 @@ class BenchmarkMetadata(BaseModel):
 
         # outcome is annoying to figure out:
         # aborted if aborted then
-        # no_data if len(rows) = 0 then
+        # no_data if none
         # pass if skipped_pct <= FAIL_THRESHOLD else
         # fail
         outcome=""
         if aborted:
             outcome="aborted"
-        elif len(rows) == 0:
+        elif skipped_pct is None:
             outcome="no_data"
         elif skipped_pct <= FAIL_THRESHOLD:
             outcome="pass"
@@ -174,30 +175,32 @@ def _series[T](rows:list[BenchmarkSample], get: Callable[[BenchmarkSample], T | 
     """
     return [value for row in rows if (value := get(row)) is not None]
 
-def calc_output_drop_pct(rows) -> float:
+def _drop_pct(rows:list[BenchmarkSample], skipped:Callable, total:Callable) -> float | None:
+    if not rows:
+        return None
+    
+    skipped_rows, total_rows = _series(rows, skipped), _series(rows, total)
+    if not skipped_rows or not total_rows:
+        return None
+    frames = total_rows[-1] - total_rows[0]
+    if frames <= 0:
+        return None
+    return max(skipped_rows[-1] - skipped_rows[0], 0.0) / frames * 100
+
+def calc_output_drop_pct(rows) -> float | None:
     """Calculate the drop rate for samples"""
-    if not rows:
-        return 0.0
-    output_total = _series(rows, lambda sample: sample.obs and sample.obs.output_total_frames)
-    output_skipped = _series(rows, lambda sample: sample.obs and sample.obs.output_skipped_frames)
+    return _drop_pct(
+        rows,
+        lambda sample: sample.obs and sample.obs.output_skipped_frames,
+        lambda sample: sample.obs and sample.obs.output_total_frames
+    )
 
-    if not output_total or not output_skipped:
-        return 0.0
-    
-    dropped, total = max(output_skipped[-1] - output_skipped[0], 0.0), max(output_total[-1] - output_total[0], 0.0)
-    return (dropped / total) * 100 if total else 0.0
-
-def calc_render_drop_pct(rows:list[BenchmarkSample]) -> float:
-    if not rows:
-        return 0.0
-    
-    render_total = _series(rows, lambda sample: sample.obs and sample.obs.render_total_frames)
-    render_skipped  = _series(rows, lambda sample: sample.obs and sample.obs.render_skipped_frames)
-    if not render_total or not render_skipped:
-        return 0.0
-    
-    dropped, total = max(render_skipped[-1] - render_skipped[0], 0.0), max(render_total[-1] - render_total[0], 0.0)
-    return (dropped / total) * 100 if total else 0.0
+def calc_render_drop_pct(rows:list[BenchmarkSample]) -> float | None:
+    return _drop_pct(
+        rows,
+        lambda sample: sample.obs and sample.obs.render_skipped_frames,
+        lambda sample: sample.obs and sample.obs.render_total_frames
+    )
 
 
 def summarize(result: BenchmarkResult) -> None:
@@ -226,8 +229,17 @@ def summarize(result: BenchmarkResult) -> None:
         print(f"Host CPU%: min={min(cpu):.1f} avg={sum(cpu)/len(cpu):.1f} max={max(cpu):.1f}")
     if gpu_util:
         print(f"GPU ({gpu_vendor}) util%: min={min(gpu_util):.1f} avg={sum(gpu_util)/len(gpu_util):.1f} max={max(gpu_util):.1f}")
-    print(f"Render frames skipped during run: {meta.render_dropped_pct:.2f}%")
-    print(f"Output (encode) frames skipped during run: {meta.output_skipped_pct:.2f}%")
+    
+    if meta.render_dropped_pct is None:
+        print(f"Render frames skipped during run: N/A")
+    else:
+        print(f"Render frames skipped during run: {meta.render_dropped_pct:.2f}%")
+    
+    if meta.output_skipped_pct is None:
+        print(f"Output (encode) frames skipped during run: N/A")
+    else:
+        print(f"Output (encode) frames skipped during run: {meta.output_skipped_pct:.2f}%")
+    
     print(f"Outcome: {meta.outcome.upper()} (fail above {meta.threshold_pct:.2f}%)")
     if meta.outcome == "fail":
         print("  ^ This is the number that decides pass/fail. Encode drops are what")

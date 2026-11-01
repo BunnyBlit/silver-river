@@ -53,9 +53,9 @@ def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, boo
     godot_proc = ChildProcessHandle(
         name="godot",
         cmd=[
-            args.godot_binary, f"--path={args.godot_project}",
-            "--windowed", f"--resolution={args.width}x{args.height}",
-            f"--rendering-driver={args.godot_rendering_driver}"
+            args.godot_binary, f"--path", f"{args.godot_project}",
+            "--windowed", f"--resolution", f"{args.width}x{args.height}",
+            f"--rendering-driver" , f"{args.godot_rendering_driver}"
         ],
         env={"DISPLAY": ":99"} | dict(args.godot_env))
     obs_proc = ChildProcessHandle(
@@ -93,7 +93,8 @@ def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, boo
         client = create_obs_client(args)
 
         print(f"[{args.label}] setting up OBS stream")
-        prepare_stream(client, args, scene_config)        
+        capture_path = args.output_dir / f"{args.label}_{run_id}_capture.png"
+        prepare_stream(client, args, scene_config, capture_path)        
 
         # sampling loop
         print(f"[{args.label}] sampling for {args.duration:.0f}s every {args.interval:.0f}s")
