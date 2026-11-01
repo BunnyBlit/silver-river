@@ -179,3 +179,13 @@ Silicon, which is the slow path precisely while iterating.
       design switch, not an incremental optimization.
       Especially right for production: a 24/7 streaming box should not be running
       an SDK or reaching out to nuget.org.
+- [ ] **Put a `timeout` around the entrypoint's `dotnet build`.** A build that
+      normally takes ~18s once sat idle for 23 minutes at ~0% CPU with no output,
+      and the entrypoint would have waited forever. Something like
+      `timeout 300 dotnet build ...` turns that into a clear failure, which matters
+      most on an unattended remote box.
+- [ ] **Stop a bad `nuget-cache` volume from hanging builds.** The volume persists
+      across runs, and removing it cleared the hang above. The likely cause is a
+      container stopped mid-run leaving a lock or partial package behind, but that
+      isn't confirmed. Reproduce it first, then decide on a fix, such as having the
+      suite runner clear the volume after a build timeout.

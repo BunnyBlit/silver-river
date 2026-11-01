@@ -7,6 +7,12 @@ from pathlib import Path
 import tomllib
 import time
 
+# Settings keys OBS accepts for an input but omits from GetInputDefaultSettings,
+# because they have no default value.
+_NO_DEFAULT_KEYS: dict[str, set[str]] = {
+    "xshm_input_v2": {"server"},
+}
+
 class TransformSpec(BaseModel):
     """Scene-item geometry specification"""
     model_config = ConfigDict(
@@ -69,7 +75,8 @@ def _validate_config(client:obs.ReqClient, config:SceneConfig):
         for source in scene.sources:
             if source.kind not in available_inputs:
                 raise RuntimeError(f"{source.name}({source.kind}) wasn't an available inputs")
-            extra = set(source.settings) - set(_default_settings(client, source.kind))
+            known = set(_default_settings(client, source.kind)) | _NO_DEFAULT_KEYS.get(source.kind, set())
+            extra = set(source.settings) - known
             if len(extra) != 0:
                 raise RuntimeError(f"{source.name} set settings that weren't available {list(extra)}")
 
