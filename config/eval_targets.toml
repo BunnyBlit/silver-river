@@ -1,0 +1,13 @@
+[[target]]
+name = "local-mac"
+role = "debug"
+host = "local"
+emulated = true
+
+[[target]]
+name = "hetzner-cpx31"
+role = "measure"
+host = "ssh://bench@203.0.113.10"
+provider = "hetzner"
+gpu = "none"          # none | nvidia | amd | intel -> picks the compose override
+duration = 1800
