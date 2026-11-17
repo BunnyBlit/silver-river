@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import Callable, get_args
 
+from silver_river.settings import BenchSettings
+
 FAIL_THRESHOLD = 0.1
 
 def read_cpu_quota() -> float | None:
@@ -124,7 +126,7 @@ class BenchmarkMetadata(BaseModel):
     aborted_reason: str | None = None
 
     @staticmethod
-    def from_args_and_rows(args, rows:list[BenchmarkSample], timing, aborted, aborted_message, run_id) -> BenchmarkMetadata:
+    def from_settings_and_rows(settings:BenchSettings, rows:list[BenchmarkSample], timing, aborted, aborted_message, run_id) -> BenchmarkMetadata:
         skipped_pct = calc_output_drop_pct(rows)
         render_drop_pct = calc_render_drop_pct(rows)
 
@@ -145,14 +147,14 @@ class BenchmarkMetadata(BaseModel):
 
         return BenchmarkMetadata(
             run_id=run_id,
-            label=args.label,
-            width=args.width,
-            height=args.height,
-            rtmp_url=args.rtmp_url,
-            interval_s=args.interval,
-            duration_s=args.duration,
-            rendering_driver=args.godot_rendering_driver,
-            godot_env=dict(args.godot_env),
+            label=settings.label,
+            width=settings.width,
+            height=settings.height,
+            rtmp_url=settings.rtmp_url,
+            interval_s=settings.interval,
+            duration_s=settings.duration,
+            rendering_driver=settings.godot_rendering_driver,
+            godot_env=dict(settings.godot_env),
             started_at=timing["start"], #TODO
             ended_at=timing["end"], #TODO
             output_skipped_pct=skipped_pct,

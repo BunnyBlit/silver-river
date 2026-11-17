@@ -8,30 +8,28 @@ from silver_river.processes import ChildProcessHandle, XvfbHandle
 from silver_river.results import BenchmarkManifest, BenchmarkMetadata, BenchmarkSample, BenchmarkResult, summarize, write_output
 from typing import Any
 
-def run_benchmark(args):
-    # formalize the args into something easier to work with?
-    if not args.godot_env and not args.allow_idle_workload:
-        raise RuntimeError("Idle workload without --allow-idle-workload set!")
-    
-    if not args.obs_password:
+from silver_river.settings import BenchSettings
+
+def run_benchmark(settings:BenchSettings):
+    if not settings.obs_password:
         raise RuntimeError("No OBS Websocket Password provided, the obs server won't run!")
 
-    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(settings.output_dir, exist_ok=True)
 
     run_id = f"{int(time.time())}"
-    rows, timing, aborted, aborted_msg = _run_and_collect(args, run_id)
-    meta = BenchmarkMetadata.from_args_and_rows(args, rows, timing, aborted, aborted_msg, run_id)
+    rows, timing, aborted, aborted_msg = _run_and_collect(settings, run_id)
+    meta = BenchmarkMetadata.from_settings_and_rows(settings, rows, timing, aborted, aborted_msg, run_id)
     result = BenchmarkResult(
         schema_version=1,
-        manifest=BenchmarkManifest.from_file(args.manifest_path, args.agd_commit, args.emulated), #TODO: create the manifest
+        manifest=BenchmarkManifest.from_file(settings.manifest_path, settings.agd_commit, settings.emulated),
         metadata=meta,
         samples=rows
     )
     summarize(result)
-    write_output(result, args.output_dir)
+    write_output(result, settings.output_dir)
     
 
-def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, bool, str | None]:
+def _run_and_collect(settings:BenchSettings, run_id:str) -> tuple[list[BenchmarkSample], dict, bool, str | None]:
     timing:dict[str, Any] = {
         'start': None,
         'end': None
@@ -41,67 +39,67 @@ def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, boo
     xvfb_godot_proc = XvfbHandle(
         display=":99",
         name="xvfb_godot",
-        width=args.width,
-        height=args.height
+        width=settings.width,
+        height=settings.height
     )
     xvfb_obs_proc = XvfbHandle(
         display=":98",
         name="xvfb_obs",
-        width=args.width,
-        height=args.height
+        width=settings.width,
+        height=settings.height
     )
     godot_proc = ChildProcessHandle(
         name="godot",
         cmd=[
-            args.godot_binary, f"--path", f"{args.godot_project}",
-            "--windowed", f"--resolution", f"{args.width}x{args.height}",
-            f"--rendering-driver" , f"{args.godot_rendering_driver}"
+            settings.godot_binary, f"--path", f"{settings.godot_project}",
+            "--windowed", f"--resolution", f"{settings.width}x{settings.height}",
+            f"--rendering-driver" , f"{settings.godot_rendering_driver}"
         ],
-        env={"DISPLAY": ":99"} | dict(args.godot_env))
+        env={"DISPLAY": ":99"} | dict(settings.godot_env))
     obs_proc = ChildProcessHandle(
         name="obs",
         cmd=[
-            args.obs_binary, "--minimize-to-tray",
-            f"--websocket_port={args.obs_ws_port}",
-            f"--websocket_password={args.obs_password}"
+            settings.obs_binary, "--minimize-to-tray",
+            f"--websocket_port={settings.obs_ws_port}",
+            f"--websocket_password={settings.obs_password}"
         ],
         env={"DISPLAY": ":98"})
     rows:list[BenchmarkSample] = []
     client = None
     # load the scene config now, we can think about it as independent of starting up
     # the various processes
-    scene_config = load_scene_config(args.scene_config_path)
+    scene_config = load_scene_config(settings.scene_config_path)
 
-    print(f"[{args.label}] starting Xvfb ({args.width}x{args.height})")
+    print(f"[{settings.label}] starting Xvfb ({settings.width}x{settings.height})")
     try:
-        xvfb_godot_proc.start(args.output_dir, args.label, run_id)
-        xvfb_obs_proc.start(args.output_dir, args.label, run_id)
-        print(f"[{args.label}] launching Godot")
-        godot_proc.start(args.output_dir, args.label, run_id)
+        xvfb_godot_proc.start(settings.output_dir, settings.label, run_id)
+        xvfb_obs_proc.start(settings.output_dir, settings.label, run_id)
+        print(f"[{settings.label}] launching Godot")
+        godot_proc.start(settings.output_dir, settings.label, run_id)
         #sleep here to wait for the godot process to start up
-        time.sleep(args.godot_warmup)
+        time.sleep(settings.godot_warmup)
         if not godot_proc.alive():
-            print(f"[{args.label}] Godot exited during warm-up -- check --godot-binary/--godot-project", file=sys.stderr)
+            print(f"[{settings.label}] Godot exited during warm-up -- check --godot-binary/--godot-project", file=sys.stderr)
             raise RuntimeError("Unable to start Godot")
 
-        print(f"[{args.label}] launching OBS")
-        obs_proc.start(args.output_dir, args.label, run_id)
-        time.sleep(args.obs_warmup)
+        print(f"[{settings.label}] launching OBS")
+        obs_proc.start(settings.output_dir, settings.label, run_id)
+        time.sleep(settings.obs_warmup)
         if not obs_proc.alive():
-            print(f"[{args.label}] OBS exited during warm-up", file=sys.stderr)
+            print(f"[{settings.label}] OBS exited during warm-up", file=sys.stderr)
             raise RuntimeError("Unable to start OBS")
-        client = create_obs_client(args)
+        client = create_obs_client(settings)
 
-        print(f"[{args.label}] setting up OBS stream")
-        capture_path = args.output_dir / f"{args.label}_{run_id}_capture.png"
-        prepare_stream(client, args, scene_config, capture_path)        
+        print(f"[{settings.label}] setting up OBS stream")
+        capture_path = settings.output_dir / f"{settings.label}_{run_id}_capture.png"
+        prepare_stream(client, settings, scene_config, capture_path)        
 
         # sampling loop
-        print(f"[{args.label}] sampling for {args.duration:.0f}s every {args.interval:.0f}s")
+        print(f"[{settings.label}] sampling for {settings.duration:.0f}s every {settings.interval:.0f}s")
         psutil.cpu_percent(interval=None) # prime for sampling -- otherwise the first sample will always read 0.0
         
         timing['start'] = datetime.now(timezone.utc)
-        while (datetime.now(timezone.utc) - timing['start']).total_seconds() < args.duration:
+        while (datetime.now(timezone.utc) - timing['start']).total_seconds() < settings.duration:
             if not godot_proc.alive(): raise RuntimeError("...Godot died mid-run")
 
             sample = BenchmarkSample(
@@ -121,14 +119,14 @@ def _run_and_collect(args, run_id:str) -> tuple[list[BenchmarkSample], dict, boo
             except Exception as e:
                 sample.error = str(e)
             rows.append(sample)
-            time.sleep(args.interval)
+            time.sleep(settings.interval)
     except Exception as e:
         aborted = True
         abort_reason = f"{e}"
         print(f"{e}", file=sys.stderr)
     finally:
         timing['end'] = datetime.now(timezone.utc)
-        print(f"[{args.label}] tearing down")
+        print(f"[{settings.label}] tearing down")
         if client:
             try:
                 client.disconnect()

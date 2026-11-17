@@ -10,6 +10,8 @@ import base64
 import io
 from PIL import Image, ImageStat
 
+from silver_river.settings import BenchSettings
+
 # Grayscale stddev below this means nothing has been drawn. Measured: black or
 # flat-colour frames are 0.00, give our selves a little wiggle room
 _MIN_CAPTURE_STDDEV = 5.0
@@ -144,13 +146,10 @@ def _source_screenshot(client: obs.ReqClient, name:str, width:int, height:int) -
     return base64.b64decode(image_data.split(",", 1)[1])
 
 ###### THE OTHER HALF ######
-def create_obs_client(args):
+def create_obs_client(settings:BenchSettings):
     """Create a websocket client for an obs instance
-        TODO: break args into a small obs client config object, so we can type it and pass it around
-        a little nicer
     """
-
-    client = obs.ReqClient(host="localhost", port=args.obs_ws_port, password=args.obs_password, timeout=5)
+    client = obs.ReqClient(host="localhost", port=settings.obs_ws_port, password=settings.obs_password, timeout=5)
     
     return client
 

@@ -18,4 +18,4 @@ DOTNET_NOLOGO=1 DOTNET_CLI_TELEMETRY_OPTOUT=1 dotnet build "$AGD_WORK/godot/Braw
 
 # only import everything _now_ so we're not stalled on warmup later
 godot4 --headless --import --path "$AGD_WORK/godot"
-exec uv run --no-sync silver-river bench --godot-project="$AGD_WORK/godot" "$@"
+exec env SR_GODOT_PROJECT="$AGD_WORK/godot" uv run --no-sync silver-river benchmark

@@ -22,7 +22,7 @@ services:
     depends_on:
       - mediamtx
     environment:
-      - OBS_WS_PASSWORD=${OBS_WS_PASSWORD:?set OBS_WS_PASSWORD}
+      - SR_OBS_PASSWORD=${SR_OBS_PASSWORD:?set SR_OBS_PASSWORD}
     volumes:
       - ${AGD_REPO:?set AGD_REPO to the BrawlerAGD-Godot checkout}:/bench/godot-project:ro
       - ./benchmark_results:/bench/benchmark_results
@@ -31,11 +31,7 @@ services:
       # instead of baking it into the image via the Dockerfile (see
       # README.md, "OBS scene setup"). Uncomment if you go that route:
       # - ./obs-config:/root/.config/obs-studio:ro
-    command:
-      - --label=${LABEL:-local-cpu}
-      - --rtmp-url=rtmp://mediamtx:1935/benchmark
-      - --duration=${DURATION:-300}
-      - --output-dir=/bench/benchmark_results
+    env_file: ...
 
 volumes:
   nuget-cache:
