@@ -9,8 +9,11 @@ cd "$(dirname "$0")/../.."
 
 # ensure that we have the correct target
 export TARGET="${1:-}"
-[[ -z "${TARGET}" ]] || { printf "target not set, usage: bench.sh TARGET MODE" >&2; exit 1; }
-[[ -f "targets/$SR_TARGET.env" ]] || { printf "no targets/%s.env;available:\n%s\n" "$TARGET" "$(ls targets)" >&2; exit 1; }
+[[ -z "${TARGET}" ]] && { printf "target not set, usage: bench.sh TARGET MODE\n" >&2; exit 1; }
+[[ -f "targets/$TARGET.env" ]] || { printf "no targets/%s.env;available:\n%s\n" "$TARGET" "$(ls targets)" >&2; exit 1; }
+
+#drop the $1 reference so we can pass the other vars down
+shift 1
 
 # load build pins and secrets
 set -a; . ./versions.env; . ./.env; set +a
@@ -22,4 +25,4 @@ export SR_AGD_COMMIT="$(git -C "$AGD_REPO" describe --always --dirty --exclude='
 mkdir -p benchmark_results
 
 # docker compose time
-exec docker compose run --rm benchmark "$@"
+exec docker compose run --build --rm benchmark "$@"
