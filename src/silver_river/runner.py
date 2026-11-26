@@ -11,9 +11,6 @@ from typing import Any
 from silver_river.settings import BenchSettings
 
 def run_benchmark(settings:BenchSettings):
-    if not settings.obs_password:
-        raise RuntimeError("No OBS Websocket Password provided, the obs server won't run!")
-
     os.makedirs(settings.output_dir, exist_ok=True)
 
     run_id = f"{int(time.time())}"
@@ -61,7 +58,7 @@ def _run_and_collect(settings:BenchSettings, run_id:str) -> tuple[list[Benchmark
         cmd=[
             settings.obs_binary, "--minimize-to-tray",
             f"--websocket_port={settings.obs_ws_port}",
-            f"--websocket_password={settings.obs_password}"
+            f"--websocket_password={settings.obs_password.get_secret_value()}"
         ],
         env={"DISPLAY": ":98"})
     rows:list[BenchmarkSample] = []

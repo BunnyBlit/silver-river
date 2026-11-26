@@ -149,20 +149,20 @@ def _source_screenshot(client: obs.ReqClient, name:str, width:int, height:int) -
 def create_obs_client(settings:BenchSettings):
     """Create a websocket client for an obs instance
     """
-    client = obs.ReqClient(host="localhost", port=settings.obs_ws_port, password=settings.obs_password, timeout=5)
+    client = obs.ReqClient(host="localhost", port=settings.obs_ws_port, password=settings.obs_password.get_secret_value(), timeout=5)
     
     return client
 
-def prepare_stream(client:obs.ReqClient, args, scene_config:SceneConfig, capture_path:Path):
+def prepare_stream(client:obs.ReqClient, settings:BenchSettings, scene_config:SceneConfig, capture_path:Path):
     """Set up the client for streaming to an rtmp sink, kick off streaming and verify
     we're good to go"""
     client.set_stream_service_settings(
         "rtmp_custom",
-        {"server": args.rtmp_url, "key": args.stream_key or ""},
+        {"server": settings.rtmp_url, "key": settings.stream_key.get_secret_value()},
     )
-    client.set_video_settings(args.fps, 1, args.width, args.height, args.width, args.height)
+    client.set_video_settings(settings.fps, 1, settings.width, settings.height, settings.width, settings.height)
     apply_scene(client, scene_config)
-    _verify_capture(client, scene_config.current_scene, args.width, args.height, capture_path)
+    _verify_capture(client, scene_config.current_scene, settings.width, settings.height, capture_path)
     client.start_stream()
 
     active = False

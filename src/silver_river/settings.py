@@ -63,9 +63,9 @@ class BenchSettings(BaseSettings):
         if not rules.startswith("timed"):
             raise ValueError(f"BRAWLER_RULES must be provided as 'timed' or 'timed:<seconds>'")
         try:
-            provided_time = float(rules.split(":")[1]) if ":" in rules else 120.0
+            provided_time = int(rules.split(":")[1]) if ":" in rules else 120.0
         except ValueError as e:
-            raise ValueError(f"{rules.split(":")[1]} is not valid, BRAWLER_RULES must be set with 'timed:<seconds>'")
+            raise ValueError(f"{rules.split(":")[1]} is not valid, BRAWLER_RULES must be set with 'timed:<seconds>'") from e
         if provided_time < self.duration + self.godot_warmup + self.obs_warmup:
                 raise ValueError(f"provided time needs to be longer than {self.duration + self.godot_warmup + self.obs_warmup}s")
         return self

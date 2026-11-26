@@ -1,4 +1,3 @@
-from ast import Call
 import psutil
 import platform
 import cpuinfo

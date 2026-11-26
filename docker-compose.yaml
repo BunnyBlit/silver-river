@@ -23,15 +23,15 @@ services:
       - mediamtx
     environment:
       - SR_OBS_PASSWORD=${SR_OBS_PASSWORD:?set SR_OBS_PASSWORD}
+      - SR_AGD_COMMIT=${SR_AGD_COMMIT:?export SR_AGD_COMMIT (git describe --always --dirty)}
     volumes:
       - ${AGD_REPO:?set AGD_REPO to the BrawlerAGD-Godot checkout}:/bench/godot-project:ro
       - ./benchmark_results:/bench/benchmark_results
       - nuget-cache:/root/.nuget/packages
-      # Only needed if you're mounting a scene collection at runtime
-      # instead of baking it into the image via the Dockerfile (see
-      # README.md, "OBS scene setup"). Uncomment if you go that route:
-      # - ./obs-config:/root/.config/obs-studio:ro
-    env_file: ...
+    env_file:
+      - targets/shared.env
+      - targets/${TARGET:?set TARGET to a file in targets/}.env
+    
 
 volumes:
   nuget-cache:
