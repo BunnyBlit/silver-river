@@ -19,8 +19,8 @@ shift 1
 # load build pins and secrets
 set -a; . ./versions.env; . ./.env; set +a
 
-# set the AGD commit we're using
-export SR_AGD_COMMIT="$(git -C "$AGD_REPO" describe --always --dirty --exclude='*')"
+# set the AGD commit we're using, if not already set
+export SR_AGD_COMMIT="${SR_AGD_COMMIT:-$(git -C "$AGD_REPO" describe --always --dirty --exclude='*')}"
 
 # create the results directory
 mkdir -p benchmark_results

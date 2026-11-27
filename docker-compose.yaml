@@ -2,8 +2,8 @@ services:
   mediamtx:
     image: bluenviron/mediamtx:${MEDIAMTX_TAG}
     ports:
-      - "1935:1935"   # RTMP ingest -- the benchmark streams here instead of Twitch
-      - "8888:8888"   # HLS playback, handy for eyeballing the test stream in a browser
+      - "127.0.0.1:1935:1935"   # RTMP ingest -- the benchmark streams here instead of Twitch
+      - "127.0.0.1:8888:8888"   # HLS playback, handy for eyeballing the test stream in a browser
     restart: unless-stopped
 
   benchmark:
